@@ -5,7 +5,7 @@ description = "flight_concierge using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools] @ git+https://github.com/crewAIInc/crewAI.git@main#subdirectory=lib/crewai",
+    "crewai[tools]==1.9.3",
     "get-flight-airport-codes>=0.1.3",
     "get-flight-airports-nearby>=0.1.2",
     "get-flight-city-codes>=0.1.2",

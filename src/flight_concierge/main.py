@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from typing import Literal
+
 from crewai.flow import Flow, and_, human_feedback, listen, or_, persist, start
 
 from flight_concierge.agents.flight_concierge_agent import FlightConciergeAgent
@@ -16,12 +18,18 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         self.state.messages.append(self.state.message)
 
     @listen(load_initial_context)
-    def collect_country_city_and_airport_codes(self):
+    def collect_country_codes(self):
         self.air_labs_service.ensure_countries_cached()
+
+    @listen(load_initial_context)
+    def collect_city_codes(self):
         self.air_labs_service.ensure_cities_cached()
+
+    @listen(load_initial_context)
+    def collect_airport_codes(self):
         self.air_labs_service.ensure_airports_cached()
 
-    @listen(collect_country_city_and_airport_codes)
+    @listen(and_(collect_country_codes, collect_city_codes, collect_airport_codes))
     def acknowledge_user_message(self):
         result = self.concierge_agent.acknowledge_message()
         self.state.messages.append(result.assistant_response)
@@ -36,27 +44,30 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         result = self.concierge_agent.process_arrival_information()
         self.state.trip_data.arrival = result
 
-    # TODO: Be forced to create these types of methods is annoying. Trying a more complex conditional on #draft_trip_plan did not work.
-    @listen(and_(process_departure_details, process_arrival_details))
-    def extract_trip_data(self):
-        print("Trip data extracted")
-
-    @listen(or_(extract_trip_data, "redo_plan"))
-    def draft_trip_plan(self, output):
-        result = self.concierge_agent.confirm_trip_data_with_user(human_feedback=output)
-        self.state.interactions.append(result)
-        self.state.messages.append(result.assistant_response)
-        return result.assistant_response.content
-
-    # TODO: Despite having the llm emitting "redo_plan", the event above is not being triggered - the flow is finishing.
-    @listen(draft_trip_plan)
+    @listen(
+        or_(
+            and_(process_departure_details, process_arrival_details),
+            "redo_plan",
+        )
+    )
     @human_feedback(
         message="Please review this trip planning details. Does it meet your needs?",
         emit=["redo_plan", "proceed_with_booking"],
         llm="gpt-4.1",
     )
-    def review_trip_planning(self, content):
-        return content
+    def draft_trip_plan(
+        self, human_feedback_result
+    ) -> Literal["redo_plan", "proceed_with_booking"]:
+        result = self.concierge_agent.confirm_trip_data_with_user(
+            human_feedback=human_feedback_result
+        )
+        self.state.interactions.append(result)
+        self.state.messages.append(result.assistant_response)
+        return result.assistant_response.content
+
+    @listen("proceed_with_booking")
+    def booking_route(self):
+        pass
 
 
 def kickoff():
