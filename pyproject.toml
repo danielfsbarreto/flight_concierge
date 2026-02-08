@@ -5,7 +5,7 @@ description = "flight_concierge using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools]==1.9.3",
+    "crewai[tools] @ git+https://github.com/crewAIInc/crewAI.git@main#subdirectory=lib/crewai",
     "get-flight-airport-codes>=0.1.3",
     "get-flight-airports-nearby>=0.1.2",
     "get-flight-city-codes>=0.1.2",
@@ -22,9 +22,13 @@ run_with_trigger = "flight_concierge.main:run_with_trigger"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [[tool.uv.index]]
 name = "daniel-crewai-d42c35b9"
 url = "https://app.crewai.com/pypi/daniel-crewai-d42c35b9"
+explicit = true
 
 [tool.crewai]
 type = "flow"
@@ -33,3 +37,4 @@ type = "flow"
 get-flight-country-codes = { index = "daniel-crewai-d42c35b9" }
 get-flight-city-codes = { index = "daniel-crewai-d42c35b9" }
 get-flight-airport-codes = { index = "daniel-crewai-d42c35b9" }
+get-flight-airports-nearby = { index = "daniel-crewai-d42c35b9" }

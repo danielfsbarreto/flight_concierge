@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
-from .flight_databases import FlightDatabases
 from .interaction import Interaction
 from .message import Message
+from .trip_data import TripData
 
 
 class FlightConciergeState(BaseModel):
@@ -10,6 +10,6 @@ class FlightConciergeState(BaseModel):
     message: Message | None = None
 
     # processing
-    flight_databases: FlightDatabases = FlightDatabases()
     messages: list[Message] = []
     interactions: list[Interaction] = []
+    trip_data: TripData = TripData()

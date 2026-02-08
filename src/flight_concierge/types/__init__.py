@@ -1,25 +1,21 @@
 from .airport import Airport
-from .airports_database import AirportsDatabase
-from .cities_database import CitiesDatabase
+from .arrival_data import ArrivalData
 from .city import City
-from .countries_database import CountriesDatabase
 from .country import Country
+from .departure_data import DepartureData
 from .flight_concierge_state import FlightConciergeState
-from .flight_databases import FlightDatabases
 from .interaction import Interaction
 from .message import Message
 from .trip_data import TripData
 
 __all__ = [
     "Airport",
-    "AirportsDatabase",
-    "CitiesDatabase",
+    "ArrivalData",
     "City",
-    "CountriesDatabase",
     "Country",
+    "DepartureData",
     "FlightConciergeState",
-    "FlightDatabases",
-    "TripData",
-    "Message",
     "Interaction",
+    "Message",
+    "TripData",
 ]

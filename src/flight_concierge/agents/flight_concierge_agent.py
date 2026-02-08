@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from crewai import Agent
+from crewai.flow.human_feedback import HumanFeedbackResult
 from get_flight_airports_nearby import GetFlightAirportsNearby
 
 from flight_concierge.tools import (
@@ -8,7 +9,12 @@ from flight_concierge.tools import (
     QueryLocalCitiesDatabase,
     QueryLocalCountriesDatabase,
 )
-from flight_concierge.types import FlightConciergeState, Interaction
+from flight_concierge.types import (
+    ArrivalData,
+    DepartureData,
+    FlightConciergeState,
+    Interaction,
+)
 
 
 class FlightConciergeAgent:
@@ -31,150 +37,152 @@ class FlightConciergeAgent:
             forefront of your recommendations.""".strip(),
             inject_date=True,
             tools=[
-                QueryLocalCountriesDatabase(
-                    database=self._state.flight_databases.countries,
-                ),
-                QueryLocalCitiesDatabase(
-                    database=self._state.flight_databases.cities,
-                ),
-                QueryLocalAirportsDatabase(
-                    database=self._state.flight_databases.airports
-                ),
+                QueryLocalCountriesDatabase(),
+                QueryLocalCitiesDatabase(),
+                QueryLocalAirportsDatabase(),
                 GetFlightAirportsNearby(),
             ],
             llm="gpt-4.1",
         )
 
-    def handle_user_message(self):
+    def acknowledge_message(self):
         messages_context = "\n".join(
             [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
         )
 
         prompt = f"""
-        As a Senior Travel Concierge, your job is to help users plan their trips by collecting
-        travel information in a structured, top-down manner.
-
-        Analyze the following conversation and gather trip information using a TOP-DOWN approach:
+        As a Senior Travel Concierge, acknowledge the user's latest message in a warm, professional way.
 
         CONVERSATION HISTORY:
-
         {messages_context}
 
-        INFORMATION HIERARCHY (Top-Down):
+        YOUR TASK:
+        - Acknowledge what the user just said
+        - Let them know you're processing their travel request
+        - Keep it brief, friendly, and reassuring
+        - Set expectations that you'll find the best flight options
 
-        LEVEL 1 - Countries:
-        - Departure country
-        - Arrival country
-        - If user mentions a city, use Query Local Cities Database to determine the country automatically
-        - If user mentions an airport, use Query Local Airports Database to determine the city and country automatically
-
-        LEVEL 2 - Cities:
-        - Departure city
-        - Arrival city
-        - Verify cities belong to the countries identified in Level 1
-
-        LEVEL 3 - Airports:
-        - Departure airport options
-        - Arrival airport options
-        - Use Query Local Airports Database with city codes to find all airports
-        - Only use Get Flight Airports Nearby if local database has no results
-
-        LEVEL 4 - Dates:
-        - Departure date and time
-        - Return date and time (if applicable)
-
-        SMART INFERENCE:
-        - If user says "I'm flying from Paris", automatically infer:
-          * Country: France (use Query Local Cities Database to verify)
-          * City: Paris
-          * Then find airports in Paris
-        - If user says "I need to go to JFK", automatically infer:
-          * Airport: JFK
-          * City: New York (use Query Local Airports Database to get city_code)
-          * Country: USA (from city lookup)
-
-        YOUR RESPONSIBILITIES:
-        1. Ask for missing information starting from the highest level (country) if not inferrable
-        2. When user provides lower-level info (city/airport), automatically fill in higher levels using tools
-        3. Always steer the conversation towards completing the trip data
-        4. Be friendly, professional, and efficient
-        5. Confirm inferred information with the user (e.g., "I see you're traveling from Paris, France - is that correct?")
-
-        REQUIRED INFORMATION TO COMPLETE:
-        - Departure: country, city, airport options, date
-        - Arrival: country, city, airport options, date
-
-        Return:
-        - assistant_response: Your friendly response to the user with any clarifying questions
-        - trip_data: The latest trip data collected (including auto-inferred information)
+        Return ONLY:
+        - assistant_response: Your brief acknowledgment message (1-2 sentences max)
         """
+
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def extract_information_from_user_request(self):
+    def process_departure_information(self):
+        messages_context = "\n".join(
+            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
+        )
+
         prompt = f"""
-        Analyze the following user request and extract flight information using a TOP-DOWN approach:
+        As a Senior Travel Concierge, focus on extracting and processing DEPARTURE information only.
 
-        User Request: "{self._state.user_request}"
+        CONVERSATION HISTORY:
+        {messages_context}
 
-        STRICT WORKFLOW - Follow these steps in order:
+        YOUR TASK: Extract departure details using TOP-DOWN approach:
 
-        STEP 1: Identify Countries
-        - Extract the departure country name from the user request
-        - Extract the arrival country name from the user request
-        - Use Query Local Countries Database to verify each country exists and get country codes
-        - Save: departure_country_code, arrival_country_code
+        1. DEPARTURE COUNTRY
+           - Identify departure country from conversation
+           - Use Query Local Countries Database to verify and get country code
 
-        STEP 2: Identify Cities
-        - Extract the departure city name from the user request
-        - Extract the arrival city name from the user request
-        - Use Query Local Cities Database ONCE for departure city (filter by name if needed)
-        - Use Query Local Cities Database ONCE for arrival city (filter by name if needed)
-        - From results, save: city_code, lat, lng, country_code for each city
-        - Verify the country codes match the ones from STEP 1
+        2. DEPARTURE CITY
+           - Identify departure city from conversation
+           - Use Query Local Cities Database to get: city_code, lat, lng, country_code
+           - Verify country code matches step 1
 
-        STEP 3: Extract Travel Date/Time
-        - Extract the travel date and time from the user request
-        - Save this information
+        3. DEPARTURE AIRPORTS
+           - Use Query Local Airports Database with city_code (FREE, try first)
+           - If no results, use Get Flight Airports Nearby with lat/lng (PAID, max once)
+           - Distance: 30 km, ignore heliports and low popularity airports
 
-        STEP 4: Find Airports
-        - For BOTH departure and arrival cities, you need to find airports
-        - For this:
-            Query Local Airports Database (FREE - use this first)
-            - Use filter_by="city_code" with the city_code from STEP 2
-            - This will return all airports in that city from the local database
+        4. DEPARTURE DATE
+           - Extract departure date from conversation (format: YYYY-MM-DD)
 
-            Get Flight Airports Nearby (PAID API - use only after Query Local Airports Database)
-            - Use the lat/lng coordinates from STEP 2
-            - Set distance parameter up to 30 km
-            - Returns airports sorted by popularity scores and distance
-            - Ignore heliports
-            - Ignore airports with with low popularity scores
-
-        Recommended approach:
-        - Always prioritize using the Query Local Airports Database tool
-        - Do not abuse the Get Flight Airports Nearby API since it is paid. Use it only once per city
-        (i.e. once for the departure city and once for the arrival city)
-
-        STEP 5: Format and Return Results
-        Provide a structured response with:
-        - Departure country and country code
-        - Arrival country and country code
-        - Departure city: name, city_code, coordinates (lat, lng)
-        - Arrival city: name, city_code, coordinates (lat, lng)
-        - Travel date and time
-        - Departure airports: list of airports with name, IATA code, ICAO code, city_code
-        - Arrival airports: list of airports with name, IATA code, ICAO code, city_code
-
-        CRITICAL RULES:
-        - Follow the TOP-DOWN approach: Countries → Cities → Airports
-        - Query each database ONCE per entity (one query per country, one per city)
-        - Get Flight Airports Nearby: PAID API - use it carefully
-        - Prefer Query Local Airports Database over Get Flight Airports Nearby
-        - Do NOT skip steps or change the order
-        - Ignore heliports altogether
-        - Ignore airports with low popularity scores
-
-        If any required information is missing, report it clearly and stop.
+        Return only the departure information.
         """
 
-        return self._agent.kickoff(prompt.strip())
+        return self._agent.kickoff(
+            prompt.strip(), response_format=DepartureData
+        ).pydantic
+
+    def process_arrival_information(self):
+        """Process arrival location details: country, city, and airports."""
+        messages_context = "\n".join(
+            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
+        )
+
+        prompt = f"""
+        As a Senior Travel Concierge, focus on extracting and processing ARRIVAL information only.
+
+        CONVERSATION HISTORY:
+        {messages_context}
+
+        YOUR TASK: Extract arrival details using TOP-DOWN approach:
+
+        1. ARRIVAL COUNTRY
+           - Identify arrival country from conversation
+           - Use Query Local Countries Database to verify and get country code
+
+        2. ARRIVAL CITY
+           - Identify arrival city from conversation
+           - Use Query Local Cities Database to get: city_code, lat, lng, country_code
+           - Verify country code matches step 1
+
+        3. ARRIVAL AIRPORTS
+           - Use Query Local Airports Database with city_code (FREE, try first)
+           - If no results, use Get Flight Airports Nearby with lat/lng (PAID, max once)
+           - Distance: 30 km, ignore heliports and low popularity airports
+
+        4. ARRIVAL DATE
+           - Extract arrival date from conversation (format: YYYY-MM-DD)
+
+        Return only the departure information.
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=ArrivalData).pydantic
+
+    def confirm_trip_data_with_user(
+        self, human_feedback: HumanFeedbackResult | None = None
+    ):
+        messages_context = "\n".join(
+            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
+        )
+
+        prompt = f"""
+        As a Senior Travel Concierge, compile the trip details, present them to the user,
+        and review them if necessary.
+
+        CONVERSATION HISTORY:
+        {messages_context}
+
+        DEPARTURE INFORMATION:
+        {self._state.trip_data.departure.model_dump_json()}
+
+        ARRIVAL INFORMATION:
+        {self._state.trip_data.arrival.model_dump_json()}
+
+        HUMAN FEEDBACK:
+        {human_feedback}
+
+        YOUR TASK:
+        1. Review all departure and arrival information gathered
+        2. Present a comprehensive summary with:
+           - Complete departure details (country, city, airport options, date)
+           - Complete arrival details (country, city, airport options, date)
+        3. Highlight the most convenient airport options based on proximity and popularity
+        4. Ask if the traveler needs any clarification or has preferences
+
+        CRITICAL RULES:
+        - Never suggest airports more than 30 km away from the cities the user is interested in
+        - Ignore heliports and airports with low popularity scores
+
+        RETURN:
+        - assistant_response: A friendly, professional summary of the trip details.
+        The intent with this message is to confirm the trip details before proceeding with the
+        booking process.
+        - metadata: The complete TripData information with all known information filled
+
+        If any critical information is still missing, clearly ask for it.
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic

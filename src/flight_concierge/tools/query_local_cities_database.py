@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Literal, Type
 
 from crewai.tools import BaseTool
@@ -22,8 +24,21 @@ class QueryLocalCitiesDatabase(BaseTool):
         "Prioritizes exact city code matches over name matches when using 'auto' mode. "
         "Returns a list of city dictionaries with all fields."
     )
-    database: BaseModel
     args_schema: Type[BaseModel] = QueryLocalCitiesDatabaseInput
+
+    def _load_cities_data(self):
+        """Load cities data from JSON file."""
+        # Get project root (assuming tool is in src/flight_concierge/tools/)
+        project_root = Path(__file__).parent.parent.parent.parent
+        cities_file = project_root / "db" / "cities.json"
+
+        if not cities_file.exists():
+            raise FileNotFoundError(
+                f"Cities database not found at {cities_file}. Please run the service to cache data first."
+            )
+
+        with open(cities_file, "r") as f:
+            return json.load(f)
 
     def _run(
         self,
@@ -31,26 +46,26 @@ class QueryLocalCitiesDatabase(BaseTool):
         filter_by: Literal["city_code", "name", "auto"] = "auto",
     ) -> list[dict]:
         query_lower = search_query.lower()
-        cities = self.database.data
+        cities = self._load_cities_data()
 
         # Priority 1: Exact city code match
         if filter_by in ["city_code", "auto"]:
             city_code_matches = [
                 city
                 for city in cities
-                if city.city_code and query_lower == city.city_code.lower()
+                if city.get("city_code") and query_lower == city["city_code"].lower()
             ]
             if city_code_matches:
-                return [city.model_dump() for city in city_code_matches]
+                return city_code_matches
 
         # Priority 2: Name matches (partial allowed)
         if filter_by in ["name", "auto"]:
             name_matches = [
                 city
                 for city in cities
-                if city.name and query_lower in city.name.lower()
+                if city.get("name") and query_lower in city["name"].lower()
             ]
             if name_matches:
-                return [city.model_dump() for city in name_matches]
+                return name_matches
 
         return []
