@@ -18,6 +18,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     @start()
     def load_initial_context(self):
         self.state.messages.append(self.state.message)
+        return self.state.messages[-1].content
 
     @listen(load_initial_context)
     def collect_country_codes(self):
@@ -35,6 +36,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     def acknowledge_user_message(self):
         result = FlightConciergeAgent().acknowledge_message(self.state.messages)
         self.state.messages.append(result.assistant_response)
+        return self.state.messages[-1].content
 
     @listen(acknowledge_user_message)
     def process_departure_details(self):
@@ -81,6 +83,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
             messages=self.state.messages,
         )
         self.state.messages.append(result.assistant_response)
+        return self.state.messages[-1].content
 
     @listen(acknowledge_trip_plan_feedback)
     @human_feedback(
@@ -108,6 +111,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         )
         self.state.messages.append(result.assistant_response)
         self.state.interactions.append(result)
+        return self.state.messages[-1].content
 
     @listen(booking_route)
     def look_for_best_flights(self):
@@ -116,6 +120,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         )
         self.state.messages.append(result.assistant_response)
         self.state.interactions.append(result)
+        return self.state.messages[-1].content
 
 
 def kickoff():
