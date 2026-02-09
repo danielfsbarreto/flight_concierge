@@ -14,7 +14,6 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.air_labs_service = AirLabsService()
-        self.concierge_agent = FlightConciergeAgent()
 
     @start()
     def load_initial_context(self):
@@ -34,17 +33,19 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
 
     @listen(and_(collect_country_codes, collect_city_codes, collect_airport_codes))
     def acknowledge_user_message(self):
-        result = self.concierge_agent.acknowledge_message(self.state.messages)
+        result = FlightConciergeAgent().acknowledge_message(self.state.messages)
         self.state.messages.append(result.assistant_response)
 
     @listen(acknowledge_user_message)
     def process_departure_details(self):
-        result = self.concierge_agent.process_departure_information(self.state.messages)
+        result = FlightConciergeAgent().process_departure_information(
+            self.state.messages
+        )
         self.state.trip_data.legs[0].departure = result
 
     @listen(acknowledge_user_message)
     def process_arrival_details(self):
-        result = self.concierge_agent.process_arrival_information(self.state.messages)
+        result = FlightConciergeAgent().process_arrival_information(self.state.messages)
         self.state.trip_data.legs[0].arrival = result
 
     @listen(and_(process_departure_details, process_arrival_details))
@@ -56,7 +57,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     def draft_trip_plan(
         self, human_feedback_result
     ) -> Literal["needs_changes", "approved"]:
-        result = self.concierge_agent.confirm_trip_data_with_user(
+        result = FlightConciergeAgent().confirm_trip_data_with_user(
             messages=self.state.messages,
             trip_data=self.state.trip_data,
         )
@@ -76,7 +77,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
                 outcome=feedback_result.outcome,
             )
         )
-        result = self.concierge_agent.acknowledge_trip_plan_feedback(
+        result = FlightConciergeAgent().acknowledge_trip_plan_feedback(
             messages=self.state.messages,
         )
         self.state.messages.append(result.assistant_response)
@@ -88,7 +89,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         llm="gpt-4.1",
     )
     def act_on_trip_plan_feedback(self) -> Literal["needs_changes", "approved"]:
-        result = self.concierge_agent.act_on_trip_plan_feedback(
+        result = FlightConciergeAgent().act_on_trip_plan_feedback(
             messages=self.state.messages,
             trip_data=self.state.trip_data,
         )
@@ -102,7 +103,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         self.state.messages.append(
             Message(role="user", content=feedback_result.feedback)
         )
-        result = self.concierge_agent.acknowledge_final_trip_planning_details(
+        result = FlightConciergeAgent().acknowledge_final_trip_planning_details(
             self.state.messages
         )
         self.state.messages.append(result.assistant_response)
@@ -110,7 +111,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
 
     @listen(booking_route)
     def look_for_best_flights(self):
-        result = self.concierge_agent.look_for_best_flights(
+        result = FlightConciergeAgent().look_for_best_flights(
             trip_data=self.state.trip_data,
         )
         self.state.messages.append(result.assistant_response)

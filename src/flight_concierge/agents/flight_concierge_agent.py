@@ -35,7 +35,6 @@ class FlightConciergeAgent:
             supported and confident in their journey. You prioritize finding airports that minimize
             travel time and maximize convenience, always keeping the traveler's experience at the
             forefront of your recommendations.""".strip(),
-            inject_date=True,
             tools=[
                 QueryLocalCountriesDatabase(),
                 QueryLocalCitiesDatabase(),
