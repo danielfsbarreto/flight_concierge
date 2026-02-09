@@ -12,14 +12,14 @@ from flight_concierge.tools import (
 from flight_concierge.types import (
     ArrivalData,
     DepartureData,
-    FlightConciergeState,
     Interaction,
+    TripData,
 )
+from flight_concierge.types.message import Message
 
 
 class FlightConciergeAgent:
-    def __init__(self, state: FlightConciergeState):
-        self._state = state
+    def __init__(self):
         self._agent = Agent(
             role="CrewAI Senior Travel Concierge",
             goal=f"""Find the most convenient flight routes and airport options for traveling FDEs,
@@ -46,20 +46,20 @@ class FlightConciergeAgent:
             llm="gpt-4.1",
         )
 
-    def _latest_messages(self):
+    def _latest_messages(self, messages: list[Message]):
         return "\n".join(
-            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
+            [f"{msg.role.upper()}: {msg.content}" for msg in messages[-10:]]
         )
 
-    def _latest_user_message(self):
-        return [msg for msg in self._state.messages if msg.role == "user"][-1]
+    def _latest_user_message(self, messages: list[Message]):
+        return [msg for msg in messages if msg.role == "user"][-1]
 
-    def acknowledge_message(self):
+    def acknowledge_message(self, messages: list[Message]):
         prompt = f"""
         As a Senior Travel Concierge, acknowledge the user's latest message in a warm, professional way.
 
         CONVERSATION HISTORY:
-        {self._latest_messages()}
+        {self._latest_messages(messages)}
 
         YOUR TASK:
         - Acknowledge what the user just said
@@ -73,12 +73,12 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def process_departure_information(self):
+    def process_departure_information(self, messages: list[Message]):
         prompt = f"""
         As a Senior Travel Concierge, focus on extracting and processing DEPARTURE information only.
 
         CONVERSATION HISTORY:
-        {self._latest_messages()}
+        {self._latest_messages(messages)}
 
         YOUR TASK: Extract departure details using TOP-DOWN approach:
 
@@ -106,13 +106,13 @@ class FlightConciergeAgent:
             prompt.strip(), response_format=DepartureData
         ).pydantic
 
-    def process_arrival_information(self):
+    def process_arrival_information(self, messages: list[Message]):
         """Process arrival location details: country, city, and airports."""
         prompt = f"""
         As a Senior Travel Concierge, focus on extracting and processing ARRIVAL information only.
 
         CONVERSATION HISTORY:
-        {self._latest_messages()}
+        {self._latest_messages(messages)}
 
         YOUR TASK: Extract arrival details using TOP-DOWN approach:
 
@@ -138,19 +138,19 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=ArrivalData).pydantic
 
-    def confirm_trip_data_with_user(self):
+    def confirm_trip_data_with_user(self, messages: list[Message], trip_data: TripData):
         prompt = f"""
         As a Senior Travel Concierge, compile the trip details, present them to the user,
         and review them if necessary.
 
         CONVERSATION HISTORY:
-        {self._latest_messages()}
+        {self._latest_messages(messages)}
 
         DEPARTURE INFORMATION:
-        {self._state.trip_data.legs[0].departure.model_dump_json()}
+        {trip_data.legs[0].departure.model_dump_json()}
 
         ARRIVAL INFORMATION:
-        {self._state.trip_data.legs[0].arrival.model_dump_json()}
+        {trip_data.legs[0].arrival.model_dump_json()}
 
         YOUR TASK:
         1. Review all departure and arrival information gathered
@@ -178,12 +178,12 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def acknowledge_trip_plan_feedback(self):
+    def acknowledge_trip_plan_feedback(self, messages: list[Message]):
         prompt = f"""
         As a Senior Travel Concierge, acknowledge the trip plan feedback from the user.
 
         USER MESSAGE:
-        {self._latest_user_message().content}
+        {self._latest_user_message(messages).content}
 
         YOUR TASK:
         - Thank and acknowledge what the user just said
@@ -197,15 +197,15 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def act_on_trip_plan_feedback(self):
+    def act_on_trip_plan_feedback(self, messages: list[Message], trip_data: TripData):
         prompt = f"""
         As a Senior Travel Concierge, act on the trip plan feedback from the user.
 
         LATEST TRIP DATA:
-        {self._state.trip_data.model_dump_json()}
+        {trip_data.model_dump_json()}
 
         LATEST REVIEW:
-        {self._state.trip_data.reviews[-1].model_dump_json()}
+        {trip_data.reviews[-1].model_dump_json()}
 
         YOUR TASK:
         1. Analyze the human feedback from the latest review
@@ -234,12 +234,12 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def acknowledge_final_trip_planning_details(self):
+    def acknowledge_final_trip_planning_details(self, messages: list[Message]):
         prompt = f"""
         As a Senior Travel Concierge, acknowledge the final trip planning details from the user.
 
         USER MESSAGE:
-        {self._latest_user_message().content}
+        {self._latest_user_message(messages).content}
 
         YOUR TASK:
         - Thank and acknowledge what the user just said
@@ -253,12 +253,12 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
-    def look_for_best_flights(self):
+    def look_for_best_flights(self, trip_data: TripData):
         prompt = f"""
         As a Senior Travel Concierge, look for the best flights available for the trip.
 
         FINAL TRIP DATA:
-        {self._state.trip_data.model_dump_json()}
+        {trip_data.model_dump_json()}
 
         YOUR TASK:
         - Look for the best flights available
