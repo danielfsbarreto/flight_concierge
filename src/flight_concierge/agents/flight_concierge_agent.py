@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from crewai import Agent
-from crewai.flow.human_feedback import HumanFeedbackResult
 from get_flight_airports_nearby import GetFlightAirportsNearby
 
 from flight_concierge.tools import (
@@ -45,16 +44,17 @@ class FlightConciergeAgent:
             llm="gpt-4.1",
         )
 
-    def acknowledge_message(self):
-        messages_context = "\n".join(
+    def _latest_messages(self):
+        return "\n".join(
             [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
         )
 
+    def acknowledge_message(self):
         prompt = f"""
         As a Senior Travel Concierge, acknowledge the user's latest message in a warm, professional way.
 
         CONVERSATION HISTORY:
-        {messages_context}
+        {self._latest_messages()}
 
         YOUR TASK:
         - Acknowledge what the user just said
@@ -69,15 +69,11 @@ class FlightConciergeAgent:
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
     def process_departure_information(self):
-        messages_context = "\n".join(
-            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
-        )
-
         prompt = f"""
         As a Senior Travel Concierge, focus on extracting and processing DEPARTURE information only.
 
         CONVERSATION HISTORY:
-        {messages_context}
+        {self._latest_messages()}
 
         YOUR TASK: Extract departure details using TOP-DOWN approach:
 
@@ -107,15 +103,11 @@ class FlightConciergeAgent:
 
     def process_arrival_information(self):
         """Process arrival location details: country, city, and airports."""
-        messages_context = "\n".join(
-            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
-        )
-
         prompt = f"""
         As a Senior Travel Concierge, focus on extracting and processing ARRIVAL information only.
 
         CONVERSATION HISTORY:
-        {messages_context}
+        {self._latest_messages()}
 
         YOUR TASK: Extract arrival details using TOP-DOWN approach:
 
@@ -141,28 +133,19 @@ class FlightConciergeAgent:
 
         return self._agent.kickoff(prompt.strip(), response_format=ArrivalData).pydantic
 
-    def confirm_trip_data_with_user(
-        self, human_feedback: HumanFeedbackResult | None = None
-    ):
-        messages_context = "\n".join(
-            [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
-        )
-
+    def confirm_trip_data_with_user(self):
         prompt = f"""
         As a Senior Travel Concierge, compile the trip details, present them to the user,
         and review them if necessary.
 
         CONVERSATION HISTORY:
-        {messages_context}
+        {self._latest_messages()}
 
         DEPARTURE INFORMATION:
-        {self._state.trip_data.departure.model_dump_json()}
+        {self._state.trip_data.legs[0].departure.model_dump_json()}
 
         ARRIVAL INFORMATION:
-        {self._state.trip_data.arrival.model_dump_json()}
-
-        HUMAN FEEDBACK:
-        {human_feedback}
+        {self._state.trip_data.legs[0].arrival.model_dump_json()}
 
         YOUR TASK:
         1. Review all departure and arrival information gathered
@@ -179,10 +162,65 @@ class FlightConciergeAgent:
         RETURN:
         - assistant_response: A friendly, professional summary of the trip details.
         The intent with this message is to confirm the trip details before proceeding with the
-        booking process.
+        booking process. It is very important that in the message you highlight all details
+        split in the following sections:
+            * First leg: departure and arrival details (with both city/airports along with dates)
+            * Second leg: same as the first one (if applicable in case it is a round trip)
         - metadata: The complete TripData information with all known information filled
 
         If any critical information is still missing, clearly ask for it.
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
+
+    def acknowledge_trip_plan_feedback(self):
+        prompt = """
+        As a Senior Travel Concierge, acknowledge the trip plan feedback from the user.
+
+        YOUR TASK:
+        - Thank and acknowledge what the user just said
+        - Let them know you will act on the feedback
+        - Keep it brief, friendly, and reassuring
+
+        Return ONLY:
+        - assistant_response: Your brief acknowledgment message (1-2 sentences max)
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
+
+    def act_on_trip_plan_feedback(self):
+        prompt = f"""
+        As a Senior Travel Concierge, act on the trip plan feedback from the user.
+
+        LATEST TRIP DATA:
+        {self._state.trip_data.model_dump_json()}
+
+        LATEST REVIEW:
+        {self._state.trip_data.reviews[-1].model_dump_json()}
+
+        YOUR TASK:
+        1. Analyze the human feedback from the latest review
+        2. Identify specific changes requested (dates, locations, preferences, etc.)
+        3. Update the trip data accordingly based on the feedback
+        4. If the feedback requires clarification, ask follow-up questions
+        5. Provide a clear response explaining what changes were made
+
+        CRITICAL RULES:
+        - Address each point of feedback specifically
+        - Maintain all previously confirmed details unless explicitly changed
+        - If feedback is unclear, ask for clarification rather than guessing
+        - Keep airport recommendations within 30km of target cities
+        - Continue to ignore airports with low popularity scores
+        - Preserve user preferences from previous interactions
+
+        RETURN:
+        - assistant_response: A friendly, professional summary of the trip details.
+        The intent with this message is to confirm the trip details before proceeding with the
+        booking process. It is very important that in the message you highlight all details
+        split in the following sections:
+            * First leg: departure and arrival details (with both city/airports along with dates)
+            * Second leg: same as the first one (if applicable in case it is a round trip)
+        - metadata: The complete TripData information with all known information filled
         """
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic

@@ -1,8 +1,11 @@
-from pydantic import BaseModel
+from typing import List
 
-from flight_concierge.types import ArrivalData, DepartureData
+from pydantic import BaseModel, Field
+
+from .leg import Leg
+from .review import Review
 
 
 class TripData(BaseModel):
-    departure: DepartureData | None = None
-    arrival: ArrivalData | None = None
+    legs: List[Leg] = Field(default_factory=lambda: [Leg()])
+    reviews: List[Review] = []

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from typing import Literal
 
-from crewai.flow import Flow, and_, human_feedback, listen, or_, persist, start
+from crewai.flow import Flow, and_, human_feedback, listen, persist, start
+from crewai.flow.human_feedback import HumanFeedbackResult
 
 from flight_concierge.agents.flight_concierge_agent import FlightConciergeAgent
 from flight_concierge.services import AirLabsService
-from flight_concierge.types import FlightConciergeState
+from flight_concierge.types import FlightConciergeState, Message, Review
 
 
 @persist()
@@ -37,46 +38,69 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     @listen(acknowledge_user_message)
     def process_departure_details(self):
         result = self.concierge_agent.process_departure_information()
-        self.state.trip_data.departure = result
+        self.state.trip_data.legs[0].departure = result
 
     @listen(acknowledge_user_message)
     def process_arrival_details(self):
         result = self.concierge_agent.process_arrival_information()
-        self.state.trip_data.arrival = result
+        self.state.trip_data.legs[0].arrival = result
 
-    @listen(
-        or_(
-            and_(process_departure_details, process_arrival_details),
-            "redo_plan",
-        )
-    )
+    @listen(and_(process_departure_details, process_arrival_details))
     @human_feedback(
         message="Please review this trip planning details. Does it meet your needs?",
-        emit=["redo_plan", "proceed_with_booking"],
-        llm="gpt-4.1",
+        emit=["needs_changes", "approved"],
+        llm="gpt-4.1-nano",
     )
     def draft_trip_plan(
         self, human_feedback_result
-    ) -> Literal["redo_plan", "proceed_with_booking"]:
-        result = self.concierge_agent.confirm_trip_data_with_user(
-            human_feedback=human_feedback_result
-        )
-        self.state.interactions.append(result)
+    ) -> Literal["needs_changes", "approved"]:
+        result = self.concierge_agent.confirm_trip_data_with_user()
+        self.state.trip_data = result.metadata
         self.state.messages.append(result.assistant_response)
+        self.state.interactions.append(result)
         return result.assistant_response.content
 
-    @listen("proceed_with_booking")
-    def booking_route(self):
-        pass
+    @listen("needs_changes")
+    def acknowledge_trip_plan_feedback(self, feedback_result: HumanFeedbackResult):
+        self.state.messages.append(
+            Message(role="user", content=feedback_result.feedback)
+        )
+        self.state.trip_data.reviews.append(
+            Review(
+                agent_output=str(feedback_result.output),
+                human_feedback=feedback_result.feedback,
+                outcome=feedback_result.outcome,
+            )
+        )
+        result = self.concierge_agent.acknowledge_trip_plan_feedback()
+        self.state.messages.append(result.assistant_response)
+
+    @listen(acknowledge_trip_plan_feedback)
+    @human_feedback(
+        message="Please review the latest trip planning details. Is it better now?",
+        emit=["needs_changes", "approved"],
+        llm="gpt-4.1-nano",
+    )
+    def act_on_trip_plan_feedback(self) -> Literal["needs_changes", "approved"]:
+        result = self.concierge_agent.act_on_trip_plan_feedback()
+        self.state.trip_data = result.metadata
+        self.state.messages.append(result.assistant_response)
+        self.state.interactions.append(result)
+        return result.assistant_response.content
+
+    @listen("approved")
+    def booking_route(self, feedback_result: HumanFeedbackResult):
+        self.state.messages.append(
+            Message(role="user", content=feedback_result.feedback)
+        )
 
 
 def kickoff():
     FlightConciergeFlow().kickoff(
         inputs={
-            "id": "ba1c31de-bc8c-4583-be56-be303efd97fh",
             "message": {
                 "role": "user",
-                "content": "I want to travel from Recife to São Paulo (Guarulhos) on February 10 and return on February 13",
+                "content": "Gostaria de viajar de Recife para São Paulo (Guarulhos) em 10 de fevereiro e retornar em 13 de fevereiro",
             },
         }
     )
