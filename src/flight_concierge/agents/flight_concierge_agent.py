@@ -49,6 +49,9 @@ class FlightConciergeAgent:
             [f"{msg.role.upper()}: {msg.content}" for msg in self._state.messages[-10:]]
         )
 
+    def _latest_user_message(self):
+        return [msg for msg in self._state.messages if msg.role == "user"][-1]
+
     def acknowledge_message(self):
         prompt = f"""
         As a Senior Travel Concierge, acknowledge the user's latest message in a warm, professional way.
@@ -174,13 +177,17 @@ class FlightConciergeAgent:
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
 
     def acknowledge_trip_plan_feedback(self):
-        prompt = """
+        prompt = f"""
         As a Senior Travel Concierge, acknowledge the trip plan feedback from the user.
+
+        USER MESSAGE:
+        {self._latest_user_message().content}
 
         YOUR TASK:
         - Thank and acknowledge what the user just said
         - Let them know you will act on the feedback
         - Keep it brief, friendly, and reassuring
+        - Respond on the same language as the user's message
 
         Return ONLY:
         - assistant_response: Your brief acknowledgment message (1-2 sentences max)

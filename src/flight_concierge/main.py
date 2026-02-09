@@ -49,7 +49,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     @human_feedback(
         message="Please review this trip planning details. Does it meet your needs?",
         emit=["needs_changes", "approved"],
-        llm="gpt-4.1-nano",
+        llm="gpt-4.1",
     )
     def draft_trip_plan(
         self, human_feedback_result
@@ -62,9 +62,8 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
 
     @listen("needs_changes")
     def acknowledge_trip_plan_feedback(self, feedback_result: HumanFeedbackResult):
-        self.state.messages.append(
-            Message(role="user", content=feedback_result.feedback)
-        )
+        user_message = Message(role="user", content=feedback_result.feedback)
+        self.state.messages.append(user_message)
         self.state.trip_data.reviews.append(
             Review(
                 agent_output=str(feedback_result.output),
@@ -79,7 +78,7 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
     @human_feedback(
         message="Please review the latest trip planning details. Is it better now?",
         emit=["needs_changes", "approved"],
-        llm="gpt-4.1-nano",
+        llm="gpt-4.1",
     )
     def act_on_trip_plan_feedback(self) -> Literal["needs_changes", "approved"]:
         result = self.concierge_agent.act_on_trip_plan_feedback()
@@ -100,7 +99,7 @@ def kickoff():
         inputs={
             "message": {
                 "role": "user",
-                "content": "Gostaria de viajar de Recife para São Paulo (Guarulhos) em 10 de fevereiro e retornar em 13 de fevereiro",
+                "content": "Gostaria de viajar de Recife para Campinas em 10 de fevereiro e retornar dia 13",
             },
         }
     )
