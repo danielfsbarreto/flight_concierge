@@ -4,6 +4,7 @@ from crewai import Agent
 from get_flight_airports_nearby import GetFlightAirportsNearby
 
 from flight_concierge.tools import (
+    GetFlightsFromGoogleFlights,
     QueryLocalAirportsDatabase,
     QueryLocalCitiesDatabase,
     QueryLocalCountriesDatabase,
@@ -40,6 +41,7 @@ class FlightConciergeAgent:
                 QueryLocalCitiesDatabase(),
                 QueryLocalAirportsDatabase(),
                 GetFlightAirportsNearby(),
+                GetFlightsFromGoogleFlights(),
             ],
             llm="gpt-4.1",
         )
@@ -228,6 +230,48 @@ class FlightConciergeAgent:
             * First leg: departure and arrival details (with both city/airports along with dates)
             * Second leg: same as the first one (if applicable in case it is a round trip)
         - metadata: The complete TripData information with all known information filled
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
+
+    def acknowledge_final_trip_planning_details(self):
+        prompt = f"""
+        As a Senior Travel Concierge, acknowledge the final trip planning details from the user.
+
+        USER MESSAGE:
+        {self._latest_user_message().content}
+
+        YOUR TASK:
+        - Thank and acknowledge what the user just said
+        - Let them know you will start looking for the best flights available
+        - Keep it brief, friendly, and reassuring
+        - Respond on the same language as the user's message
+
+        RETURN:
+        - assistant_response: Your brief acknowledgment message (1-2 sentences max)
+        """
+
+        return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic
+
+    def look_for_best_flights(self):
+        prompt = f"""
+        As a Senior Travel Concierge, look for the best flights available for the trip.
+
+        FINAL TRIP DATA:
+        {self._state.trip_data.model_dump_json()}
+
+        YOUR TASK:
+        - Look for the best flights available
+        - Use 'Find Flights' tool to do this
+        - This tool can be used for round-trips and one-way trips
+          * In case the legs differ in terms of departure and arrival airports,
+          you should call the tool twice (once for each leg as an one-way trip each)
+          * In case the legs are the same airports-wise, you should call the tool once (two-way trip)
+        - Return the best flights available
+
+        RETURN:
+        - assistant_response: Your message with the best flights available for each leg of the trip
+        written down in a friendly and professional way on the same language as the user's message.
         """
 
         return self._agent.kickoff(prompt.strip(), response_format=Interaction).pydantic

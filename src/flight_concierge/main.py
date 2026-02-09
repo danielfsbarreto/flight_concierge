@@ -92,6 +92,15 @@ class FlightConciergeFlow(Flow[FlightConciergeState]):
         self.state.messages.append(
             Message(role="user", content=feedback_result.feedback)
         )
+        result = self.concierge_agent.acknowledge_final_trip_planning_details()
+        self.state.messages.append(result.assistant_response)
+        self.state.interactions.append(result)
+
+    @listen(booking_route)
+    def look_for_best_flights(self):
+        result = self.concierge_agent.look_for_best_flights()
+        self.state.messages.append(result.assistant_response)
+        self.state.interactions.append(result)
 
 
 def kickoff():

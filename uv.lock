@@ -741,6 +741,7 @@ dependencies = [
     { name = "get-flight-airports-nearby" },
     { name = "get-flight-city-codes" },
     { name = "get-flight-country-codes" },
+    { name = "google-search-results" },
 ]
 
 [package.metadata]
@@ -750,6 +751,7 @@ requires-dist = [
     { name = "get-flight-airports-nearby", specifier = ">=0.1.2", index = "https://app.crewai.com/pypi/daniel-crewai-d42c35b9" },
     { name = "get-flight-city-codes", specifier = ">=0.1.2", index = "https://app.crewai.com/pypi/daniel-crewai-d42c35b9" },
     { name = "get-flight-country-codes", specifier = ">=0.1.1", index = "https://app.crewai.com/pypi/daniel-crewai-d42c35b9" },
+    { name = "google-search-results", specifier = ">=2.4.2" },
 ]
 
 [[package]]
@@ -885,6 +887,15 @@ dependencies = [
     { name = "crewai", extra = ["tools"] },
 ]
 sdist = { url = "https://app.crewai.com/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsiZGF0YSI6MTg4ODk1LCJwdXIiOiJibG9iX2lkIn19--606293422fa16f8a2379414460f15a5486aed33f/get-flight-country-codes-0.1.1.tar.gz?disposition=attachment" }
+
+[[package]]
+name = "google-search-results"
+version = "2.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/30/b3a6f6a2e00f8153549c2fa345c58ae1ce8e5f3153c2fe0484d444c3abcb/google_search_results-2.4.2.tar.gz", hash = "sha256:603a30ecae2af8e600b22635757a6df275dad4b934f975e67878ccd640b78245", size = 18818, upload-time = "2023-03-10T11:13:09.953Z" }
 
 [[package]]
 name = "googleapis-common-protos"
