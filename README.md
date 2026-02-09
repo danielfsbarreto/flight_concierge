@@ -1,56 +1,141 @@
-# {{crew_name}} Crew
+# Flight Concierge
 
-Welcome to the {{crew_name}} Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+An intelligent AI-powered travel assistant built with [crewAI](https://crewai.com) that helps users find the best flight options through a conversational interface with human feedback loops.
+
+## Overview
+
+Flight Concierge is a CrewAI Flow application that guides users through trip planning by:
+- Understanding travel requests in natural language (supports multiple languages)
+- Identifying optimal departure and arrival airports based on proximity and convenience
+- Gathering and confirming trip details through interactive feedback
+- Searching for the best available flights via Google Flights
+
+The system uses a stateful flow architecture with human-in-the-loop feedback to ensure accuracy and user satisfaction at each stage of the planning process.
+
+## Features
+
+- **Multi-language Support**: Responds in the user's preferred language
+- **Intelligent Location Processing**: Identifies countries, cities, and nearby airports using a local database and external APIs
+- **Airport Recommendations**: Suggests convenient airports within 30km of target cities, filtering by popularity
+- **Human Feedback Loops**: Confirms trip details before proceeding with flight searches
+- **Flight Search Integration**: Queries Google Flights for best available options (one-way and round-trip)
+- **Persistent State**: Maintains conversation history and trip data throughout the flow
+
+## Prerequisites
+
+- Python >=3.10 <3.14
+- [UV](https://docs.astral.sh/uv/) package manager
 
 ## Installation
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
-
-First, if you haven't already, install uv:
+Install UV if you haven't already:
 
 ```bash
 pip install uv
 ```
 
-Next, navigate to your project directory and install the dependencies:
+Install project dependencies:
 
-(Optional) Lock the dependencies and install them by using the CLI command:
 ```bash
 crewai install
 ```
 
-### Customizing
+Configure environment variables by copying `.env.example` to `.env`:
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+```bash
+cp .env.example .env
+```
 
-- Modify `src/flight_concierge/config/agents.yaml` to define your agents
-- Modify `src/flight_concierge/config/tasks.yaml` to define your tasks
-- Modify `src/flight_concierge/crew.py` to add your own logic, tools and specific args
-- Modify `src/flight_concierge/main.py` to add custom inputs for your agents and tasks
+Add your API keys to `.env`:
 
-## Running the Project
+```env
+AIRLABS_API_KEY=your_airlabs_key
+OPENAI_API_KEY=your_openai_key
+SERPAPI_API_KEY=your_serpapi_key
+```
 
-To kickstart your flow and begin execution, run this from the root folder of your project:
+## Usage
+
+Run the flight concierge flow:
 
 ```bash
 crewai run
 ```
 
-This command initializes the flight_concierge Flow as defined in your configuration.
+Or use the Python entry point:
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+```bash
+python -m flight_concierge.main
+```
 
-## Understanding Your Crew
+Visualize the flow structure:
 
-The flight_concierge Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+```bash
+crewai plot
+```
+
+## Architecture
+
+### Flow Structure
+
+The application implements a CrewAI Flow with the following stages:
+
+1. **Load Initial Context**: Initializes services and agents
+2. **Collect Location Data**: Fetches and caches countries, cities, and airports databases
+3. **Acknowledge Message**: Greets user and confirms request understanding
+4. **Process Departure/Arrival**: Extracts location and date information in parallel
+5. **Draft Trip Plan**: Presents trip details for user review (human feedback)
+6. **Feedback Loop**: Iterates on changes until user approves
+7. **Search Flights**: Queries Google Flights for best available options
+
+### Key Components
+
+- **FlightConciergeAgent**: Main agent orchestrating the travel planning process
+- **AirLabsService**: Manages caching of location databases (countries, cities, airports)
+- **Custom Tools**:
+  - `QueryLocalCountriesDatabase`: Searches local country codes
+  - `QueryLocalCitiesDatabase`: Searches local city codes with coordinates
+  - `QueryLocalAirportsDatabase`: Searches local airport codes
+  - `GetFlightAirportsNearby`: Finds nearby airports using coordinates (API call)
+  - `GetFlightsFromGoogleFlights`: Searches flight options via SerpAPI
+
+### State Management
+
+The flow maintains a `FlightConciergeState` containing:
+- Conversation messages
+- Trip data (legs, airports, dates)
+- User interactions and reviews
+- Human feedback history
+
+## Project Structure
+
+```
+flight_concierge/
+├── src/flight_concierge/
+│   ├── agents/
+│   │   └── flight_concierge_agent.py
+│   ├── services/
+│   │   └── air_labs_service.py
+│   ├── tools/
+│   │   ├── get_flights_from_google_flights.py
+│   │   ├── query_local_airports_database.py
+│   │   ├── query_local_cities_database.py
+│   │   └── query_local_countries_database.py
+│   ├── types/
+│   │   ├── airport.py
+│   │   ├── arrival_data.py
+│   │   ├── departure_data.py
+│   │   ├── flight_concierge_state.py
+│   │   └── ...
+│   └── main.py
+├── db/                    # Auto-generated location databases
+├── .env.example
+├── pyproject.toml
+└── README.md
+```
 
 ## Support
 
-For support, questions, or feedback regarding the {{crew_name}} Crew or crewAI.
-
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
-
-Let's create wonders together with the power and simplicity of crewAI.
+- [crewAI Documentation](https://docs.crewai.com)
+- [crewAI GitHub](https://github.com/joaomdmoura/crewai)
+- [Join Discord](https://discord.com/invite/X4JWnZnxPb)
